@@ -2,6 +2,7 @@ package sync
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -151,6 +152,22 @@ func TestSyncPendingRangesWithMisses(t *testing.T) {
 
 	// and fire up a sync
 	syncer.sync(ctx)
+	range3 := suite.GenDummyHeaders(15)
+	_, err = remoteStore.Append(ctx, range3...)
+	require.NoError(t, err)
+
+	syncer.pending.Add(range3[len(range3)-1])
+
+	wg := sync.WaitGroup{}
+	wg.Add(10)
+	for i := 0; i < 10; i++ {
+		go func() {
+			syncer.sync(ctx)
+			wg.Done()
+		}()
+		time.Sleep(1 * time.Microsecond)
+	}
+	wg.Wait()
 
 	_, err = remoteStore.GetByHeight(ctx, 43)
 	require.NoError(t, err)
